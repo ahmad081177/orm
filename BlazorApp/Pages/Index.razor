@@ -1,0 +1,58 @@
+﻿@page "/"
+@using Models
+@using DBL
+@inject IJSRuntime js
+
+<div class="m-2">
+<span class="h1">My Customers</span>
+
+@if (list == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table w-50">
+        <thead>
+            <tr>
+                <th>Customers Name</th>
+                <th>Customers Email</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (Customer item in list)
+            {
+                <tr>
+                    <td><a href="customerDetails/@item.Id.ToString()"> @item.Name</a></td>
+                    <td>@item.Email</td>
+                    <td>
+                        <a class="btn btn-success" href="customereEdit/@item.Id.ToString()">Edit</a>
+                        <button class="btn btn-danger" @onclick="@(() => Delete(@item.Id))">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+<a href="/registration" class="btn btn-success">Add new Customer</a>
+</div>
+@code {
+    List<Customer> list;
+    protected override async Task OnInitializedAsync()
+    {
+        CustomerDB customerDB = new CustomerDB();
+        list = (List<Customer>)await customerDB.SelectAllAsync();
+
+    }
+
+    async Task Delete(int id)
+    {
+        CustomerDB customerDB = new CustomerDB();
+        Customer customer = await customerDB.SelectByPkAsync(id);
+        if (await js.InvokeAsync<bool>("confirm", $"Do you want to delete {customer.Name}'s Record?"))
+        {
+            await customerDB.DeleteAsync(customer);
+            OnInitializedAsync();
+        }
+    }
+}

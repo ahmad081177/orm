@@ -1,0 +1,62 @@
+﻿@page "/customereEdit/{Id:int}"
+@inject NavigationManager uriHelper
+@inject IJSRuntime js
+@using Models
+@using DBL
+<div class="form-signin text-center w-50">
+    <img class="mb-4" src="https://getbootstrap.com/docs/4.0/assets/brand/bootstrap-solid.svg" alt="" width="72" height="72">
+    <h1 class="h3 mb-3 font-weight-normal">Edit</h1>
+
+    <label for="inputName" class="sr-only">Name</label>
+    <input @bind-value="Name" type="text" id="inputEmail" class="form-control m-1" placeholder="Name" required autofocus>
+
+    <label for="inputEmail" class="sr-only">Email address</label>
+    <input @bind-value="Email" type="text" id="inputEmail" class="form-control m-1" placeholder="Email" required autofocus>
+
+    <div class="mt-5 mb-3 text-muted"><a href="editPassword/@id.ToString()">Edit Password</a></div>
+
+    <button @onclick="doEdit" class="btn btn-lg btn-primary btn-block m-1" type="submit">Update</button>
+</div>
+
+
+@code {
+    [Parameter] public int id { get; set; }
+    private string Name = "";
+    private string Email = "";
+    private string Password = "";
+    private Customer customer;
+
+    protected override async void OnParametersSet()
+    {
+        if (id == null)
+            id = 0;
+        else
+        {
+            customer = new Customer();
+            CustomerDB customerDB = new CustomerDB();
+            customer = await customerDB.SelectByPkAsync(id);
+            Name = customer.Name;
+            Email = customer.Email;
+        }
+    }
+
+    async Task doEdit()
+    {
+        CustomerDB customerDB = new CustomerDB();
+        customer = new Customer();
+        customer.Name = Name;
+        customer.Email = Email;
+        customer.Id = id;
+        int n = await customerDB.UpdateAsync(customer);
+        if (n > 0)
+        {
+            await js.InvokeVoidAsync("alert", $"Updated Successfully!");
+            uriHelper.NavigateTo("/");
+        }
+        else
+        {
+            await js.InvokeVoidAsync("alert", $"Update failed!");
+            uriHelper.NavigateTo("/");
+        }
+    }
+}
