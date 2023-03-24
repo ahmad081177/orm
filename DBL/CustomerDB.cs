@@ -9,6 +9,10 @@ namespace DBL
         {
             return "Customers";
         }
+        public override string GetPKColumnName()
+        {
+            return "Id";
+        }
         protected override Customer CreateModel(object[] row)
         {
             if (row?.Length == 5)
@@ -37,58 +41,7 @@ namespace DBL
             }
             throw new Exception($"Invalid table {GetTableName()} configuration - should have at leadt 5 columns.");
         }
-        protected override List<Customer> CreateListModel(List<object[]> rows)
-        {
-            List<Customer> custList = new();
-            foreach (object[] item in rows)
-            {
-                Customer c = CreateModel(item);
-                custList.Add(c);
-            }
-            return custList;
-        }
-        protected override async Task<List<Customer>> CreateListModelAsync(List<object[]> rows)
-        {
-            List<Customer> custList = new();
-            foreach (object[] item in rows)
-            {
-                Customer c = await CreateModelAsync(item);
-                custList.Add(c);
-            }
-            return custList;
-        }
-
-        
-        protected override async Task<Customer> GetRowByPKAsync(object pk)
-        {
-            string sql = @$"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE (CustomerID = @id)";
-            AddParameterToCommand("@id", int.Parse(pk.ToString()));
-            List<Customer> list = await SelectAllAsync(sql);
-            if (list.Count == 1)
-                return list[0];
-            return null;
-        }
-
-        protected override Customer GetRowByPK(object pk)
-        {
-            string sql = @"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE (CustomerID = @id)";
-            AddParameterToCommand("@id", int.Parse(pk.ToString()));
-            List<Customer> list = SelectAll(sql);
-            if (list.Count == 1)
-                return list[0];
-            return null;
-        }
-
-        public async Task<List<Customer>> GetAllAsync()
-        {
-            return await SelectAllAsync();
-        }
-
-        public List<Customer> GetAll()
-        {
-            return SelectAll();
-        }
-
+       
         public async Task<bool> InsertAsync(Customer customer,string password)
         {
             Dictionary<string, string> fillValues = new Dictionary<string, string>
@@ -111,7 +64,7 @@ namespace DBL
             return base.Insert(fillValues) == 1;
         }
 
-        public async Task<Customer> InsertGetObjAsync(Customer customer, string password)
+        public async Task<Customer?> InsertGetObjAsync(Customer customer, string password)
         {
             Dictionary<string, string> fillValues = new Dictionary<string, string>()
             {
@@ -119,10 +72,10 @@ namespace DBL
                 { "Email", customer.Email },
                 { "CustomerPassword", password }
             };
-            return (Customer)base.InsertGetObjAsync(fillValues);
+            return await base.InsertGetObjAsync(fillValues);
         }
 
-        public Customer InsertGetObj(Customer customer, string password)
+        public Customer? InsertGetObj(Customer customer, string password)
         {
             Dictionary<string, string> fillValues = new Dictionary<string, string>()
             {
@@ -130,7 +83,7 @@ namespace DBL
                 { "Email", customer.Email },
                 { "CustomerPassword", password }
             };
-            return (Customer)base.InsertGetObj(fillValues);
+            return base.InsertGetObj(fillValues);
         }
 
         public async Task<int> UpdateAsync(Customer customer)
@@ -139,7 +92,7 @@ namespace DBL
             Dictionary<string, string> filterValues = new Dictionary<string, string>();
             fillValues.Add("Name", customer.Name);
             fillValues.Add("Email", customer.Email);
-            filterValues.Add("CustomerID", customer.Id.ToString());
+            filterValues.Add(GetPKColumnName(), customer.Id.ToString());
             return await base.UpdateAsync(fillValues, filterValues);
         }
 
@@ -149,25 +102,8 @@ namespace DBL
             Dictionary<string, string> filterValues = new Dictionary<string, string>();
             fillValues.Add("Name", customer.Name);
             fillValues.Add("Email", customer.Email);
-            filterValues.Add("CustomerID", customer.Id.ToString());
+            filterValues.Add(GetPKColumnName(), customer.Id.ToString());
             return base.Update(fillValues, filterValues);
-        }
-
-        public async Task<int> DeleteAsync(Customer customer)
-        {
-            Dictionary<string, string> filterValues = new Dictionary<string, string>
-            {
-                { "CustomerID", customer.Id.ToString() }
-            };
-            return await base.DeleteAsync(filterValues);
-        }
-        public int Delete(Customer customer)
-        {
-            Dictionary<string, string> filterValues = new Dictionary<string, string>
-            {
-                { "CustomerID", customer.Id.ToString() }
-            };
-            return base.Delete(filterValues);
         }
 
         public async Task<int> UpdatePasswordAsync(Customer customer,string password)
@@ -177,7 +113,7 @@ namespace DBL
             fillValues.Add("Name", customer.Name);
             fillValues.Add("Email", customer.Email);
             fillValues.Add("CustomerPassword", password);
-            filterValues.Add("CustomerID", customer.Id.ToString());
+            filterValues.Add(GetPKColumnName(), customer.Id.ToString());
             return await base.UpdateAsync(fillValues, filterValues);
         }
 
@@ -188,7 +124,7 @@ namespace DBL
             fillValues.Add("Name", customer.Name);
             fillValues.Add("Email", customer.Email);
             fillValues.Add("CustomerPassword", password);
-            filterValues.Add("CustomerID", customer.Id.ToString());
+            filterValues.Add(GetPKColumnName(), customer.Id.ToString());
             return base.Update(fillValues, filterValues);
         }
 
@@ -196,7 +132,7 @@ namespace DBL
         // specific queries
         public async Task<string> GetPasswordAsync(int id)
         {
-            string sql = @$"SELECT {GetTableName()}.CustomerPassword FROM {GetTableName()} WHERE (CustomerID = @id)";
+            string sql = @$"SELECT {GetTableName()}.CustomerPassword FROM {GetTableName()} WHERE ({GetPKColumnName()} = @id)";
             AddParameterToCommand("@id", id);
             string oldPassword = (string)await ExecScalarAsync(sql);
             return oldPassword;
@@ -204,46 +140,24 @@ namespace DBL
 
         public string GetPassword(int id)
         {
-            string sql = @$"SELECT {GetTableName()}.CustomerPassword FROM {GetTableName()} WHERE (CustomerID = @id)";
+            string sql = @$"SELECT {GetTableName()}.CustomerPassword FROM {GetTableName()} WHERE ({GetPKColumnName()} = @id)";
             AddParameterToCommand("@id", id);
             string oldPassword = (string)ExecScalar(sql);
             return oldPassword;
-        }
-
-        public async Task<Customer> SelectByPkAsync(int id)
-        {
-            string sql = @$"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE (CustomerID = @id)";
-            AddParameterToCommand("@id", id);
-            List<Customer> list = await SelectAllAsync(sql);
-            if (list.Count == 1)
-                return list[0];
-            else
-                return null;
-        }
-
-        public Customer SelectByPk(int id)
-        {
-            string sql = @$"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE (CustomerID = @id)";
-            AddParameterToCommand("@id", id);
-            List<Customer> list = SelectAll(sql);
-            if (list.Count == 1)
-                return list[0];
-            else
-                return null;
         }
 
         public async Task<List<Customer>> GetNonAdminsAsync()
         {
             Dictionary<string, string> p = new Dictionary<string, string>();
             p.Add("IsAdmin", "0");
-            return await SelectAllAsync(p);
+            return await SelectAllAsync(parameters: p);
         }
 
         public List<Customer> GetNonAdmins()
         {
             Dictionary<string, string> p = new Dictionary<string, string>();
             p.Add("IsAdmin", "0");
-            return SelectAll(p);
+            return SelectAll(parameters:p);
         }
 
         public async Task<List<(string, string)>> GetName_Email4NonAdminsAsync()
@@ -278,11 +192,11 @@ namespace DBL
             return returnList;
         }
 
-        public async Task<Customer> GetCustomerByOrderIDAsync(int orderID)
+        public async Task<Customer?> GetCustomerByOrderIDAsync(int orderID)
         {
             string sql = @$"Select {DbName}.{GetTableName()}.*
                            From {DbName}.{GetTableName()} Inner Join {DbName}.orders 
-                           On {DbName}.orders.CustomerID = {DbName}.{GetTableName()}.CustomerID";
+                           On {DbName}.orders.{GetPKColumnName()} = {DbName}.{GetTableName()}.{GetPKColumnName()}";
             Dictionary<string, string> p = new Dictionary<string, string>();
             p.Add(DbName+".orders.OrderID", orderID.ToString());
             List<Customer> list = await SelectAllAsync(sql, p);
@@ -292,11 +206,11 @@ namespace DBL
                 return null;
         }
 
-        public Customer GetCustomerByOrderID(int orderID)
+        public Customer? GetCustomerByOrderID(int orderID)
         {
             string sql = @$"Select {DbName}.{GetTableName()}.*
                            From {DbName}.{GetTableName()} Inner Join {DbName}.orders 
-                           On {DbName}.orders.CustomerID = {DbName}.{GetTableName()}.CustomerID";
+                           On {DbName}.orders.{GetPKColumnName()} = {DbName}.{GetTableName()}.{GetPKColumnName()}";
             Dictionary<string, string> p = new Dictionary<string, string>();
             p.Add(DbName+".orders.OrderID", orderID.ToString());
             List<Customer> list = SelectAll(sql, p);
@@ -305,6 +219,5 @@ namespace DBL
             else
                 return null;
         }
-
     }
 }

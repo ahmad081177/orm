@@ -1,4 +1,5 @@
-﻿using System.Data.Common;
+﻿using Models;
+using System.Data.Common;
 
 namespace DBL
 {
@@ -8,26 +9,78 @@ namespace DBL
         private const string AND = "AND";
        
         protected abstract string GetTableName();
-        protected abstract T GetRowByPK(object pk);
-        protected abstract Task<T> GetRowByPKAsync(object pk);
+        public abstract string GetPKColumnName();
         protected abstract T CreateModel(object[] row);
         protected abstract Task<T> CreateModelAsync(object[] row);
-        protected abstract List<T> CreateListModel(List<object[]> rows);
-        protected abstract Task<List<T>> CreateListModelAsync(List<object[]> rows);
 
-        public List<T> SelectAll()
+        protected virtual T GetRowByPK(object pk)
         {
-            return SelectAll("", new Dictionary<string, string>());
+            string sql = @$"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE ({GetPKColumnName()} = @id)";
+            AddParameterToCommand("@id", int.Parse(pk.ToString()));
+            List<T> list = SelectAll(sql);
+            if (list.Count == 1)
+                return list[0];
+            return default;
         }
-        public List<T> SelectAll(Dictionary<string, string> parameters)
+        protected virtual async Task<T?> GetRowByPKAsync(object pk)
         {
-            return SelectAll("", parameters);
+            string sql = @$"SELECT {GetTableName()}.* FROM {GetTableName()} WHERE ({GetPKColumnName()} = @id)";
+            AddParameterToCommand("@id", int.Parse(pk.ToString()));
+            List<T> list = await SelectAllAsync(sql);
+            if (list.Count == 1)
+                return list[0];
+            return default;
         }
-        public List<T> SelectAll(string query)
+        public virtual async Task<T?> GetModelByPkAsync(string pk)
         {
-            return SelectAll(query, new Dictionary<string, string>());
+            Dictionary<string, string> p = new Dictionary<string, string>();
+            p.Add(GetPKColumnName(), pk.ToString());
+            List<T> list = await SelectAllAsync(parameters: p);
+            if (list.Count == 1)
+                return list[0];
+            else
+                return default;
         }
-        public List<T> SelectAll(string query, Dictionary<string, string> parameters)
+        public virtual T? GetModelByPk(string pk)
+        {
+            Dictionary<string, string> p = new Dictionary<string, string>();
+            p.Add(GetPKColumnName(), pk.ToString());
+            List<T> list = SelectAll(parameters: p);
+            if (list.Count == 1)
+                return list[0];
+            else
+                return default;
+        }
+        protected virtual List<T> CreateListModel(List<object[]> rows)
+        {
+            List<T> custList = new();
+            foreach (object[] item in rows)
+            {
+                T c = CreateModel(item);
+                custList.Add(c);
+            }
+            return custList;
+        }
+        protected virtual async Task<List<T>> CreateListModelAsync(List<object[]> rows)
+        {
+            List<T> custList = new();
+            foreach (object[] item in rows)
+            {
+                T c = await CreateModelAsync(item);
+                custList.Add(c);
+            }
+            return custList;
+        }
+        public virtual async Task<List<T>> GetAllAsync()
+        {
+            return await SelectAllAsync();
+        }
+
+        public virtual List<T> GetAll()
+        {
+            return SelectAll();
+        }
+        public List<T> SelectAll(string query="", Dictionary<string, string>? parameters = null)
         {
             List<object[]> list = StingListSelectAll(query, parameters);
             return CreateListModel(list);
@@ -100,7 +153,7 @@ namespace DBL
                 return null;
 
             PreQuery(query);
-            object obj = null;
+            object? obj = null;
             try
             {
                 obj = cmd.ExecuteScalar();
@@ -129,7 +182,7 @@ namespace DBL
             return ExecNonQuery(sqlCommand);
         }
 
-        protected object InsertGetObj(Dictionary<string, string> keyAndValue)
+        protected T? InsertGetObj(Dictionary<string, string> keyAndValue)
         {
             if (keyAndValue != null && keyAndValue.Count > 0)
             {
@@ -138,7 +191,7 @@ namespace DBL
 
                 string sqlCommand = $"INSERT INTO {GetTableName()}  {InKey} {InValue};" +
                                     $"SELECT LAST_INSERT_ID();";
-                object res = ExecScalar(sqlCommand);
+                object? res = ExecScalar(sqlCommand);
                 if (res != null)
                 {
                     //TODO: Why thses casting?
@@ -147,7 +200,7 @@ namespace DBL
                     return GetRowByPK(Id);
                 }
             }
-            return null;
+            return default;
         }
 
 
@@ -169,7 +222,22 @@ namespace DBL
 
         // Dictionary<string, string> parameters - תנאים לעדכון
         // return -  מספר שדות שעודכנו
-
+        public async Task<int> DeleteAsync(string pk)
+        {
+            Dictionary<string, string> filterValues = new Dictionary<string, string>
+            {
+                { GetPKColumnName(), pk }
+            };
+            return await DeleteAsync(filterValues);
+        }
+        public int Delete(string id)
+        {
+            Dictionary<string, string> filterValues = new Dictionary<string, string>
+            {
+                { GetPKColumnName(), id }
+            };
+            return Delete(filterValues);
+        }
         protected int Delete(Dictionary<string, string> parameters)
         {
             string where = ParamsToWhereQuery(parameters);
@@ -177,28 +245,12 @@ namespace DBL
             string sqlCommand = $"DELETE FROM {GetTableName()} {where}";
             return ExecNonQuery(sqlCommand);
         }
-
-
-        public async Task<List<T>> SelectAllAsync()
-        {
-            return await SelectAllAsync("", new Dictionary<string, string>());
-        }
-
-        public async Task<List<T>> SelectAllAsync(Dictionary<string, string> parameters)
-        {
-            return await SelectAllAsync("", parameters);
-        }
-        public async Task<List<T>> SelectAllAsync(string query)
-        {
-            return await SelectAllAsync(query, new Dictionary<string, string>());
-        }
-        public async Task<List<T>> SelectAllAsync(string query, Dictionary<string, string> parameters)
+        public async Task<List<T>> SelectAllAsync(string query = "", Dictionary<string, string>? parameters = null)
         {
             List<object[]> list = await StingListSelectAllAsync(query, parameters);
-            return CreateListModel(list);
+            return await CreateListModelAsync(list);
         }
-
-        protected async Task<List<object[]>> StingListSelectAllAsync(string query, Dictionary<string, string> parameters)
+        protected async Task<List<object[]>> StingListSelectAllAsync(string query, Dictionary<string, string>? parameters)
         {
             List<object[]> list = new List<object[]>();
             string where = ParamsToWhereQuery(parameters);
@@ -207,7 +259,7 @@ namespace DBL
             if (String.IsNullOrEmpty(query))
                 sqlCommand = $"SELECT * FROM {GetTableName()} {where}";
 
-            PreQuery(sqlCommand);
+            await PreQueryAsync(sqlCommand);
 
             try
             {
@@ -229,7 +281,7 @@ namespace DBL
             }
             finally
             {
-                PostQuery();
+                await PostQueryAsync();
             }
             return list;
         }
@@ -257,12 +309,12 @@ namespace DBL
         }
 
         // exeScalar
-        protected async Task<object> ExecScalarAsync(string query)
+        protected async Task<object?> ExecScalarAsync(string query)
         {
             if (String.IsNullOrEmpty(query))
                 return null;
-            PreQuery(query);
-            object obj = null;
+            await PreQueryAsync(query);
+            object? obj = null;
             try
             {
                 obj = await cmd.ExecuteScalarAsync();
@@ -273,7 +325,7 @@ namespace DBL
             }
             finally
             {
-                PostQuery();
+                await PostQueryAsync();
             }
             return obj;
         }
@@ -293,26 +345,26 @@ namespace DBL
             return await ExecNonQueryAsync(sqlCommand);
         }
 
-        protected object InsertGetObjAsync(Dictionary<string, string> keyAndValue)
+        protected async Task<T?> InsertGetObjAsync(Dictionary<string, string> keyAndValue)
         {
             if (keyAndValue == null || keyAndValue.Count == 0)
-                return null;
+                return default;
 
             string InKey, InValue;
             PrepareInKeyAndValueToInsertQuery(keyAndValue, out InKey, out InValue);
 
             string sqlCommand = $"INSERT INTO {GetTableName()}  {InKey} {InValue};" +
                                 $"SELECT LAST_INSERT_ID();";
-            object res = ExecScalarAsync(sqlCommand);
+            object res = await ExecScalarAsync(sqlCommand);
             if (res != null)
             {
                 //TODO: why all these castings?
                 ulong qkwl = (ulong)res;
                 int Id = (int)qkwl;
-                return GetRowByPK(Id);
+                return await GetRowByPKAsync(Id);
             }
             else
-                return null;
+                return default;
         }
 
 
@@ -346,7 +398,7 @@ namespace DBL
         protected void AddParameterToCommand(string name, object value)
         {
             var p = cmd.CreateParameter();
-            p.ParameterName = "@"+name;
+            p.ParameterName = name;
             p.Value = value;
             cmd.Parameters.Add(p);
         }
@@ -362,7 +414,15 @@ namespace DBL
             if (cmd.Connection?.State != System.Data.ConnectionState.Open)
                 cmd.Connection = DB.conn;
         }
-        
+        private async Task PreQueryAsync(string sqlCommandStr)
+        {
+            cmd.CommandText = sqlCommandStr;
+            if (DB.conn.State != System.Data.ConnectionState.Open)
+                await DB.conn.OpenAsync();
+            if (cmd.Connection?.State != System.Data.ConnectionState.Open)
+                cmd.Connection = DB.conn;
+        }
+
         /// <summary>
         /// Make cleanup after sql command was executed
         /// </summary>
@@ -374,6 +434,15 @@ namespace DBL
             cmd.Parameters.Clear();
             if (DB.conn.State == System.Data.ConnectionState.Open)
                 DB.conn.Close();
+        }
+        private async Task PostQueryAsync()
+        {
+            if (reader != null && !reader.IsClosed)
+                await reader.CloseAsync();
+
+            cmd.Parameters.Clear();
+            if (DB.conn.State == System.Data.ConnectionState.Open)
+                await DB.conn.CloseAsync();
         }
 
         /// <summary>
@@ -405,7 +474,7 @@ namespace DBL
         /// <param name="parameters">Key & Value</param>
         /// <example>Where p1=v1 AND p2=v2</example>
         /// <returns>String of SQL Where closure</returns>
-        private string ParamsToWhereQuery(Dictionary<string, string> parameters)
+        private string ParamsToWhereQuery(Dictionary<string, string> ?parameters)
         {
             string where = BaseDB<T>.WHERE_KW;
 

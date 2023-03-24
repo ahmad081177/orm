@@ -48,11 +48,11 @@ else
     async Task Delete(int id)
     {
         CustomerDB customerDB = new CustomerDB();
-        Customer customer = await customerDB.SelectByPkAsync(id);
+        Customer? customer = await customerDB.GetModelByPkAsync(id.ToString());
         if (await js.InvokeAsync<bool>("confirm", $"Do you want to delete {customer.Name}'s Record?"))
         {
-            await customerDB.DeleteAsync(customer);
-            OnInitializedAsync();
+            await customerDB.DeleteAsync(customer.Id.ToString());
+            await OnInitializedAsync();
         }
     }
 }

@@ -10,7 +10,7 @@ namespace ConsoleUnitTesting
             CustomerDB cdb = new CustomerDB();
             Dictionary<string, string> param = new Dictionary<string, string>();
             param.Add("CustomerID", "1");
-            List<Customer> list = cdb.SelectAll(param);
+            List<Customer> list = cdb.SelectAll(parameters: param);
             if (list?.Count>0)
             {
                 Console.WriteLine($" name: {list[0].Name} email: {list[0].Email}\n\n");
@@ -22,6 +22,7 @@ namespace ConsoleUnitTesting
 
             //TEST CustomerDB SelectAll
             list = cdb.SelectAll();
+               
             foreach(Customer item in list)
             {
                 Console.WriteLine(@$" id={item.Id} name={item.Name} email={item.Email}");
@@ -43,14 +44,16 @@ namespace ConsoleUnitTesting
                 Console.WriteLine($"Insert {c1.Name} to customers failed");
             }
             //Retrive the customer from the DB (since we dont her ID)
-            Dictionary<string, string> param2 = new Dictionary<string, string>();
-            param2.Add("Email", c1.Email);
-            param2.Add("Name", c1.Name);
-            var c1_list = cdb.SelectAll(param2);
+            Dictionary<string, string> param2 = new()
+            {
+                { "Email", c1.Email },
+                { "Name", c1.Name }
+            };
+            var c1_list = cdb.SelectAll(parameters: param2);
             if (c1_list.Count == 1)
             {
                 //Delet the newly created one
-                int r = cdb.Delete(c1_list[0]);
+                int r = cdb.Delete(c1_list[0].Id.ToString());
                 if (r == 1)
                 {
                     Console.WriteLine($"Delete {c1.Name} from customers was successful");
